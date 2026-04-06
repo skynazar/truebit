@@ -1,0 +1,127 @@
+# -----------------------------------------------------------------------------
+# Smart Pipeline — Conditional Terraform execution based on changed files
+# -----------------------------------------------------------------------------
+# Logic:
+#   - CHANGELOG.md only       → skip all Terraform
+#   - apps/payment-api/*      → plan payment-api only
+#   - apps/user-api/*         → plan user-api only
+#   - global/**               → plan ALL apps (downstream impact check)
+#   - Multiple paths changed  → union of all triggered targets
+# -----------------------------------------------------------------------------
+
+name: Smart Terraform Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  id-token: write   # For OIDC / assume-role if needed
+  pull-requests: write
+
+env:
+  TF_VERSION: "1.9.0"
+
+jobs:
+  # -------------------------------------------------------
+  # 1. Detect which directories changed → build a matrix
+  # -------------------------------------------------------
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      has_targets: ${{ steps.set-matrix.outputs.has_targets }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # Need full history for diff
+
+      - name: Determine changed paths
+        id: set-matrix
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE=${{ github.event.pull_request.base.sha }}
+          else
+            BASE=${{ github.event.before }}
+          fi
+
+          CHANGED=$(git diff --name-only "$BASE" HEAD)
+          echo "Changed files:"
+          echo "$CHANGED"
+
+          TARGETS=()
+
+          # Global change → trigger ALL apps
+          if echo "$CHANGED" | grep -q '^global/'; then
+            TARGETS+=("apps/payment-api" "apps/user-api")
+          fi
+
+          # App-specific changes
+          if echo "$CHANGED" | grep -q '^apps/payment-api/'; then
+            TARGETS+=("apps/payment-api")
+          fi
+          if echo "$CHANGED" | grep -q '^apps/user-api/'; then
+            TARGETS+=("apps/user-api")
+          fi
+
+          # De-duplicate
+          UNIQUE_TARGETS=($(printf '%s\n' "${TARGETS[@]}" | sort -u))
+
+          if [ ${#UNIQUE_TARGETS[@]} -eq 0 ]; then
+            echo "No Terraform targets — skipping."
+            echo 'matrix={"target":[]}' >> "$GITHUB_OUTPUT"
+            echo 'has_targets=false' >> "$GITHUB_OUTPUT"
+          else
+            # Build JSON matrix: {"target":["apps/payment-api","apps/user-api"]}
+            JSON=$(printf '%s\n' "${UNIQUE_TARGETS[@]}" | jq -R . | jq -sc '{target: .}')
+            echo "matrix=$JSON" >> "$GITHUB_OUTPUT"
+            echo "has_targets=true" >> "$GITHUB_OUTPUT"
+            echo "Terraform targets: ${UNIQUE_TARGETS[*]}"
+          fi
+
+  # -------------------------------------------------------
+  # 2. Run terraform plan for each detected target
+  # -------------------------------------------------------
+  terraform-plan:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.has_targets == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
+
+    defaults:
+      run:
+        working-directory: ${{ matrix.target }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Plan
+        id: plan
+        run: terraform plan -no-color -out=tfplan 2>&1 | tee plan-output.txt
+
+      - name: Write Plan to Job Summary
+        if: always()
+        run: |
+          echo "## Terraform Plan — \`${{ matrix.target }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          cat plan-output.txt >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
