@@ -1,5 +1,0 @@
-aws_region   = "us-east-1"
-project_name = "northwind"
-vpc_cidr     = "192.168.0.0/16"
-db_username  = "northwind_admin"
-db_password  = "CHANGE_ME_use_a_strong_password"

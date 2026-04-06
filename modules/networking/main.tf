@@ -2,20 +2,26 @@
 # Networking Module — VPC, Subnets, IGW, Route Tables
 # -----------------------------------------------------------------------------
 
+locals {
+  name_prefix = "${var.project_name}-${var.environment}"
+}
+
+# --- VPC ---
+
 resource "aws_vpc" "this" {
   cidr_block           = var.vpc_cidr
   enable_dns_support   = true
   enable_dns_hostnames = true
 
-  tags = { Name = "${var.project_name}-vpc" }
+  tags = { Name = "${local.name_prefix}-vpc" }
 }
 
-# --- Internet Gateway (public tier only) ---
+# --- Internet Gateway ---
 
 resource "aws_internet_gateway" "this" {
   vpc_id = aws_vpc.this.id
 
-  tags = { Name = "${var.project_name}-igw" }
+  tags = { Name = "${local.name_prefix}-igw" }
 }
 
 # --- Public Subnets ---
@@ -28,8 +34,10 @@ resource "aws_subnet" "public" {
   availability_zone       = each.value.az
   map_public_ip_on_launch = true
 
-  tags = { Name = "${var.project_name}-${each.key}" }
+  tags = { Name = "${local.name_prefix}-${each.key}" }
 }
+
+# --- Public Route Table (routes to IGW) ---
 
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.this.id
@@ -39,7 +47,7 @@ resource "aws_route_table" "public" {
     gateway_id = aws_internet_gateway.this.id
   }
 
-  tags = { Name = "${var.project_name}-public-rt" }
+  tags = { Name = "${local.name_prefix}-public-rt" }
 }
 
 resource "aws_route_table_association" "public" {
@@ -49,7 +57,7 @@ resource "aws_route_table_association" "public" {
   route_table_id = aws_route_table.public.id
 }
 
-# --- Private Subnets (no IGW route — isolated by default) ---
+# --- Private Subnets (no internet route) ---
 
 resource "aws_subnet" "private" {
   for_each = var.private_subnets
@@ -58,5 +66,5 @@ resource "aws_subnet" "private" {
   cidr_block        = each.value.cidr
   availability_zone = each.value.az
 
-  tags = { Name = "${var.project_name}-${each.key}" }
+  tags = { Name = "${local.name_prefix}-${each.key}" }
 }

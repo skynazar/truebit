@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">= 1.5.0"
+  required_version = ">= 1.0.0"
 
   required_providers {
     aws = {
@@ -7,8 +7,22 @@ terraform {
       version = "~> 5.0"
     }
   }
+
+  backend "s3" {
+    bucket = "trubit-candidate-tfstate-bucket"
+    key    = "assessment.tfstate"
+    region = "us-east-2"
+  }
 }
 
 provider "aws" {
   region = var.aws_region
+
+  default_tags {
+    tags = {
+      Project     = var.project_name
+      Environment = var.environment
+      ManagedBy   = "terraform"
+    }
+  }
 }

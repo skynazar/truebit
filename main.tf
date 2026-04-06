@@ -1,6 +1,6 @@
 # -----------------------------------------------------------------------------
 # Northwind E-Commerce — Root Module
-# 2-tier architecture: ALB + ASG (public) -> RDS PostgreSQL (private)
+# 2-tier architecture: ALB + ASG (public) → RDS PostgreSQL (private)
 # -----------------------------------------------------------------------------
 
 data "aws_availability_zones" "available" {
@@ -27,6 +27,7 @@ module "networking" {
   source = "./modules/networking"
 
   project_name    = var.project_name
+  environment     = var.environment
   vpc_cidr        = var.vpc_cidr
   public_subnets  = local.public_subnets
   private_subnets = local.private_subnets
@@ -38,6 +39,7 @@ module "database" {
   source = "./modules/database"
 
   project_name       = var.project_name
+  environment        = var.environment
   vpc_id             = module.networking.vpc_id
   vpc_cidr           = var.vpc_cidr
   private_subnet_ids = module.networking.private_subnet_ids
@@ -51,8 +53,7 @@ module "compute" {
   source = "./modules/compute"
 
   project_name      = var.project_name
+  environment       = var.environment
   vpc_id            = module.networking.vpc_id
-  vpc_cidr          = var.vpc_cidr
   public_subnet_ids = module.networking.public_subnet_ids
-  rds_endpoint      = module.database.rds_endpoint
 }

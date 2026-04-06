@@ -1,13 +1,17 @@
 variable "aws_region" {
   description = "AWS region for all resources"
   type        = string
-  default     = "us-east-1"
+  default     = "us-east-2"
 }
 
 variable "project_name" {
-  description = "Project name used for resource naming and tagging"
+  description = "Name of the startup / project"
   type        = string
-  default     = "northwind"
+}
+
+variable "environment" {
+  description = "Deployment environment (dev, staging, prod)"
+  type        = string
 }
 
 variable "vpc_cidr" {

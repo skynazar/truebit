@@ -3,6 +3,11 @@ variable "project_name" {
   type        = string
 }
 
+variable "environment" {
+  description = "Deployment environment"
+  type        = string
+}
+
 variable "vpc_id" {
   description = "VPC ID where the database will be deployed"
   type        = string

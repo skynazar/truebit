@@ -3,25 +3,19 @@ variable "project_name" {
   type        = string
 }
 
-variable "vpc_id" {
-  description = "VPC ID"
+variable "environment" {
+  description = "Deployment environment"
   type        = string
 }
 
-variable "vpc_cidr" {
-  description = "VPC CIDR block"
+variable "vpc_id" {
+  description = "VPC ID"
   type        = string
 }
 
 variable "public_subnet_ids" {
   description = "Public subnet IDs for the ALB and ASG"
   type        = list(string)
-}
-
-variable "rds_endpoint" {
-  description = "RDS endpoint passed to instances via user data"
-  type        = string
-  sensitive   = true
 }
 
 variable "asg_min" {

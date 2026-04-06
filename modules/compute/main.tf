@@ -2,6 +2,12 @@
 # Compute Module — ALB (community module) + Launch Template + ASG
 # -----------------------------------------------------------------------------
 
+locals {
+  name_prefix = "${var.project_name}-${var.environment}"
+}
+
+# --- Latest Amazon Linux 2023 AMI ---
+
 data "aws_ami" "al2023" {
   most_recent = true
   owners      = ["amazon"]
@@ -20,7 +26,7 @@ data "aws_ami" "al2023" {
 # --- Security Groups ---
 
 resource "aws_security_group" "alb" {
-  name        = "${var.project_name}-alb-sg"
+  name        = "${local.name_prefix}-alb-sg"
   description = "Allow HTTP inbound to ALB"
   vpc_id      = var.vpc_id
 
@@ -39,11 +45,11 @@ resource "aws_security_group" "alb" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = { Name = "${var.project_name}-alb-sg" }
+  tags = { Name = "${local.name_prefix}-alb-sg" }
 }
 
 resource "aws_security_group" "instances" {
-  name        = "${var.project_name}-instance-sg"
+  name        = "${local.name_prefix}-instance-sg"
   description = "Allow traffic from ALB only"
   vpc_id      = var.vpc_id
 
@@ -62,7 +68,7 @@ resource "aws_security_group" "instances" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = { Name = "${var.project_name}-instance-sg" }
+  tags = { Name = "${local.name_prefix}-instance-sg" }
 }
 
 # --- ALB (terraform-aws-modules/alb) ---
@@ -71,7 +77,7 @@ module "alb" {
   source  = "terraform-aws-modules/alb/aws"
   version = "~> 9.0"
 
-  name               = "${var.project_name}-alb"
+  name               = "${local.name_prefix}-alb"
   load_balancer_type = "application"
   vpc_id             = var.vpc_id
   subnets            = var.public_subnet_ids
@@ -90,10 +96,10 @@ module "alb" {
 
   target_groups = {
     instances = {
-      name_prefix      = "nw-"
-      protocol         = "HTTP"
-      port             = 80
-      target_type      = "instance"
+      name_prefix       = "nw-"
+      protocol          = "HTTP"
+      port              = 80
+      target_type       = "instance"
       create_attachment = false
 
       health_check = {
@@ -108,13 +114,13 @@ module "alb" {
     }
   }
 
-  tags = { Name = "${var.project_name}-alb" }
+  tags = { Name = "${local.name_prefix}-alb" }
 }
 
 # --- Launch Template ---
 
 resource "aws_launch_template" "this" {
-  name_prefix   = "${var.project_name}-lt-"
+  name_prefix   = "${local.name_prefix}-lt-"
   image_id      = data.aws_ami.al2023.id
   instance_type = "t3.micro"
 
@@ -129,14 +135,14 @@ resource "aws_launch_template" "this" {
 
   tag_specifications {
     resource_type = "instance"
-    tags          = { Name = "${var.project_name}-web" }
+    tags          = { Name = "${local.name_prefix}-web" }
   }
 }
 
 # --- Auto Scaling Group ---
 
 resource "aws_autoscaling_group" "this" {
-  name                = "${var.project_name}-asg"
+  name                = "${local.name_prefix}-asg"
   min_size            = var.asg_min
   max_size            = var.asg_max
   desired_capacity    = var.asg_min
@@ -150,7 +156,7 @@ resource "aws_autoscaling_group" "this" {
 
   tag {
     key                 = "Name"
-    value               = "${var.project_name}-asg"
+    value               = "${local.name_prefix}-asg"
     propagate_at_launch = false
   }
 }

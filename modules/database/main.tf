@@ -2,15 +2,19 @@
 # Database Module — RDS PostgreSQL in Private Subnets
 # -----------------------------------------------------------------------------
 
+locals {
+  name_prefix = "${var.project_name}-${var.environment}"
+}
+
 resource "aws_db_subnet_group" "this" {
-  name       = "${var.project_name}-db-subnet-group"
+  name       = "${local.name_prefix}-db-subnet-group"
   subnet_ids = var.private_subnet_ids
 
-  tags = { Name = "${var.project_name}-db-subnet-group" }
+  tags = { Name = "${local.name_prefix}-db-subnet-group" }
 }
 
 resource "aws_security_group" "rds" {
-  name        = "${var.project_name}-rds-sg"
+  name        = "${local.name_prefix}-rds-sg"
   description = "Allow PostgreSQL traffic from VPC CIDR only"
   vpc_id      = var.vpc_id
 
@@ -29,11 +33,11 @@ resource "aws_security_group" "rds" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = { Name = "${var.project_name}-rds-sg" }
+  tags = { Name = "${local.name_prefix}-rds-sg" }
 }
 
 resource "aws_db_instance" "this" {
-  identifier     = "${var.project_name}-postgres"
+  identifier     = "${local.name_prefix}-postgres"
   engine         = "postgres"
   engine_version = "16.4"
   instance_class = "db.t3.micro"
@@ -53,5 +57,5 @@ resource "aws_db_instance" "this" {
   publicly_accessible = false
   skip_final_snapshot = true
 
-  tags = { Name = "${var.project_name}-postgres" }
+  tags = { Name = "${local.name_prefix}-postgres" }
 }
